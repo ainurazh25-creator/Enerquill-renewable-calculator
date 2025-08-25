@@ -248,20 +248,53 @@ def main():
         st.markdown("---")
         
         # Summary table
-        st.subheader("Results Summary")
-        results_df = pd.DataFrame({
-            'Metric': ['LCOE', 'LCOH', 'LCOA', 'LCOM'],
-            'Value': [f"${format_number(lcoe)}", f"${format_number(lcoh)}", f"${format_number(lcoa)}", f"${format_number(lcom)}"],
-            'Unit': ['USD/MWh', 'USD/kg', 'USD/tonne', 'USD/tonne'],
-            'Description': [
-                'Levelized Cost of Energy',
-                'Levelized Cost of Hydrogen',
-                'Levelized Cost of Ammonia',
-                'Levelized Cost of Methanol'
-            ]
-        })
+       # st.subheader("Results Summary")
+        #results_df = pd.DataFrame({
+            #'Metric': ['LCOE', 'LCOH', 'LCOA', 'LCOM'],
+            #'Value': [f"${format_number(lcoe)}", f"${format_number(lcoh)}", f"${format_number(lcoa)}", f"${format_number(lcom)}"],
+            #'Unit': ['USD/MWh', 'USD/kg', 'USD/tonne', 'USD/tonne'],
+            #'Description': [
+               # 'Levelized Cost of Energy',
+              #  'Levelized Cost of Hydrogen',
+               # 'Levelized Cost of Ammonia',
+               # 'Levelized Cost of Methanol'
+         #   ]
+       # })
         
-        st.dataframe(results_df, use_container_width=True, hide_index=True)
+      #  st.dataframe(results_df, use_container_width=True, hide_index=True)
+
+    metrics = {
+    'LCOE': {
+        'Value': f"${lcoe:,.2f}",
+        'Unit': 'USD/MWh',
+        'Description': 'Levelized Cost of Energy'
+    },
+    'LCOH': {
+        'Value': f"${lcoh:,.2f}",
+        'Unit': 'USD/kg',
+        'Description': 'Levelized Cost of Hydrogen'
+    },
+    'LCOA': {
+        'Value': f"${lcoa:,.2f}",
+        'Unit': 'USD/tonne',
+        'Description': 'Levelized Cost of Ammonia'
+    },
+    'LCOM': {
+        'Value': f"${lcom:,.2f}",
+        'Unit': 'USD/tonne',
+        'Description': 'Levelized Cost of Methanol'
+    }
+}
+
+    st.subheader("Select Levelized Cost Metric")
+    
+    # Radio buttons for selection
+    selected_metric = st.radio("Choose a metric:", list(metrics.keys()))
+    
+    # Display the selected metric
+    metric_info = metrics[selected_metric]
+    st.write(f"**{selected_metric}**: {metric_info['Value']} ({metric_info['Unit']})")
+    st.write(f"*Description*: {metric_info['Description']}")
     
     # Information section
     st.markdown("---")
