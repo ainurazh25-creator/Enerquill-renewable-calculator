@@ -11,16 +11,15 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Core helpers
+# Helpers
 # -----------------------------
 def pv_costs_split(capex_mln_per_mw, opex_mln_per_mw_per_year, capacity_mw, r, n):
-    """Return PV CAPEX, PV OPEX, and total (USD) for a block sized by MW. Inputs are in million USD units."""
     capex_usd_per_mw = capex_mln_per_mw * 1_000_000
     opex_usd_per_mw_per_year = opex_mln_per_mw_per_year * 1_000_000
     pv_capex = capacity_mw * capex_usd_per_mw
     annual_opex = capacity_mw * opex_usd_per_mw_per_year
     pv_opex = sum(annual_opex / ((1 + r) ** t) for t in range(1, n + 1))
-    return pv_capex, pv_opex, pv_capex + pv_opex
+    return pv_capex, pv_opex, pv_capex + pv_opex  # USD
 
 def pv_energy_mwh(capacity_mw, capacity_factor, r, n):
     annual_mwh = capacity_mw * 8760 * capacity_factor
@@ -41,9 +40,9 @@ def lcom_from_lcoh(lcoh_usd_per_kg, h2_to_meoh_eff, meoh_energy_content_mwh_per_
     eff = max(h2_to_meoh_eff, 1e-9)
     return (lcoh_usd_per_kg / 0.0333) / eff * meoh_energy_content_mwh_per_tonne
 
-def fmt(x):
+def fmt1(x):  # 1-decimal display
     try:
-        return f"{x:,.2f}"
+        return f"{x:,.1f}"
     except Exception:
         return str(x)
 
@@ -63,29 +62,30 @@ def main():
     mode = st.selectbox(
         "Cost input mode",
         ["Simple multipliers", "Detailed breakdown"],
-        help=(
-            "Simple: enter electrolyzer/synthesis costs as % of generation and size as % of gen MW.\n"
-            "Detailed: absolute million-USD inputs per MW and explicit sizes."
-        ),
+        help=("Simple: % of generation and size ratios.  Detailed: absolute million-USD per MW and explicit sizes."),
     )
 
     st.markdown("---")
     st.header("Input Parameters (million USD units)")
 
-    # Generation block (always)
-    g1, g2, g3 = st.columns(3)
-    with g1:
-        st.subheader("Generation (Renewables)")
+    # ---------- Generation (aligned: two rows)
+    row1 = st.columns(3)
+    with row1[0]:
         gen_mw = st.number_input("Generation Capacity (MW)", min_value=0.1, value=100.0, step=0.1)
+    with row1[1]:
         capex_gen_mln = st.number_input("Gen CAPEX (USD mln/MW)", min_value=0.001, value=1.10, step=0.01)
-    with g2:
+    with row1[2]:
         opex_gen_mln = st.number_input("Gen OPEX (USD mln/MW/yr)", min_value=0.001, value=0.015, step=0.001)
+
+    row2 = st.columns(3)
+    with row2[0]:
         cf = st.number_input("Capacity Factor (%)", min_value=1.0, value=25.0, step=0.1) / 100
-    with g3:
+    with row2[1]:
         r = st.number_input("Discount Rate (%)", min_value=0.1, value=7.0, step=0.1) / 100
+    with row2[2]:
         n = st.number_input("Project Lifetime (years)", min_value=1, value=25, step=1)
 
-    # PV electricity from generation (defines upstream LCOE)
+    # PV electricity & upstream LCOE
     pv_elec = pv_energy_mwh(gen_mw, cf, r, n)
     pv_capex_gen, pv_opex_gen, pv_cost_gen = pv_costs_split(capex_gen_mln, opex_gen_mln, gen_mw, r, n)
     lcoe_up = lcoe_from_costs(pv_cost_gen, pv_elec)
@@ -93,80 +93,82 @@ def main():
     need_h2 = product in ("Hydrogen", "Ammonia", "Methanol")
     need_syn = product in ("Ammonia", "Methanol")
 
-    # Defaults
-    electrolyzer_eff = 0.75
-    nh3_eff = 0.525
-    meoh_eff = 0.495
-
-    # Electrolyzer block
+    # ---------- Electrolyzer
     pv_capex_elz = pv_opex_elz = pv_cost_elz = 0.0
     elz_mw = 0.0
     capex_elz_mln = opex_elz_mln = 0.0
+    electrolyzer_eff = 0.75
     if need_h2:
         st.markdown("---")
         st.subheader("Electrolyzer Block")
         if mode == "Simple multipliers":
-            c1, c2, c3 = st.columns(3)
-            with c1:
+            # % of gen
+            cols = st.columns(3)
+            with cols[0]:
                 elz_size_ratio = st.number_input("Electrolyzer size vs Gen (%)", min_value=1.0, value=100.0, step=1.0) / 100
-            with c2:
+            with cols[1]:
                 elz_capex_mult = st.number_input("Electrolyzer CAPEX as % of Gen CAPEX", min_value=0.0, value=80.0, step=1.0) / 100
-            with c3:
+            with cols[2]:
                 elz_opex_mult = st.number_input("Electrolyzer OPEX as % of Gen OPEX", min_value=0.0, value=80.0, step=1.0) / 100
             elz_mw = gen_mw * elz_size_ratio
             capex_elz_mln = capex_gen_mln * elz_capex_mult
             opex_elz_mln = opex_gen_mln * elz_opex_mult
         else:
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                elz_mw = st.number_input("Electrolyzer Capacity (MW)", min_value=0.1, value=float(100.0), step=0.1)
-            with c2:
+            cols = st.columns(3)
+            with cols[0]:
+                elz_mw = st.number_input("Electrolyzer Capacity (MW)", min_value=0.1, value=100.0, step=0.1)
+            with cols[1]:
                 capex_elz_mln = st.number_input("Electrolyzer CAPEX (USD mln/MW)", min_value=0.001, value=1.20, step=0.01)
-            with c3:
+            with cols[2]:
                 opex_elz_mln = st.number_input("Electrolyzer OPEX (USD mln/MW/yr)", min_value=0.001, value=0.024, step=0.001)
+
         electrolyzer_eff = st.number_input("Electrolyzer Efficiency (%)", min_value=10.0, value=75.0, step=0.1) / 100
         pv_capex_elz, pv_opex_elz, pv_cost_elz = pv_costs_split(capex_elz_mln, opex_elz_mln, elz_mw, r, n)
 
-    # Synthesis block
+    # ---------- Synthesis
     pv_capex_syn = pv_opex_syn = pv_cost_syn = 0.0
     syn_mw = 0.0
     capex_syn_mln = opex_syn_mln = 0.0
+    nh3_eff = 0.525
+    meoh_eff = 0.495
     if need_syn:
         st.markdown("---")
         st.subheader(f"Synthesis Block ({'Ammonia' if product=='Ammonia' else 'Methanol'})")
         if mode == "Simple multipliers":
-            d1, d2, d3 = st.columns(3)
-            with d1:
+            cols = st.columns(3)
+            with cols[0]:
                 syn_size_ratio = st.number_input("Synthesis size vs Electrolyzer (%)", min_value=1.0, value=100.0, step=1.0) / 100
-            with d2:
+            with cols[1]:
                 syn_capex_mult = st.number_input("Synthesis CAPEX as % of Gen CAPEX", min_value=0.0, value=60.0, step=1.0) / 100
-            with d3:
+            with cols[2]:
                 syn_opex_mult = st.number_input("Synthesis OPEX as % of Gen OPEX", min_value=0.0, value=60.0, step=1.0) / 100
             syn_mw = (elz_mw if need_h2 else gen_mw) * syn_size_ratio
             capex_syn_mln = capex_gen_mln * syn_capex_mult
             opex_syn_mln = opex_gen_mln * syn_opex_mult
         else:
-            d1, d2, d3 = st.columns(3)
-            with d1:
-                syn_mw = st.number_input("Synthesis Capacity (MW-eq)", min_value=0.1, value=float(100.0), step=0.1)
-            with d2:
+            cols = st.columns(3)
+            with cols[0]:
+                syn_mw = st.number_input("Synthesis Capacity (MW-eq)", min_value=0.1, value=100.0, step=0.1)
+            with cols[1]:
                 capex_syn_mln = st.number_input("Synthesis CAPEX (USD mln/MW-eq)", min_value=0.001, value=0.90, step=0.01)
-            with d3:
+            with cols[2]:
                 opex_syn_mln = st.number_input("Synthesis OPEX (USD mln/MW-eq/yr)", min_value=0.001, value=0.018, step=0.001)
+
         if product == "Ammonia":
             nh3_eff = st.number_input("H2 → NH3 Efficiency (%)", min_value=10.0, value=52.5, step=0.1) / 100
         if product == "Methanol":
             meoh_eff = st.number_input("H2 → Methanol Efficiency (%)", min_value=10.0, value=49.5, step=0.1) / 100
+
         pv_capex_syn, pv_opex_syn, pv_cost_syn = pv_costs_split(capex_syn_mln, opex_syn_mln, syn_mw, r, n)
 
     st.markdown("---")
 
     if st.button("Calculate", type="primary"):
-        # Chain totals & chain LCOE
+        # Chain present value cost (USD) and chain LCOE
         pv_chain = pv_cost_gen + pv_cost_elz + pv_cost_syn
         lcoe_chain = lcoe_from_costs(pv_chain, pv_elec)
 
-        # Final KPI
+        # Map to final KPI
         final_kpi_label = "LCOE"
         final_kpi_value = lcoe_chain
         if product == "Hydrogen":
@@ -181,39 +183,38 @@ def main():
             lcoh_tmp = lcoh_from_lcoe(lcoe_chain, electrolyzer_eff)
             final_kpi_value = lcom_from_lcoh(lcoh_tmp, meoh_eff)
 
-        # Header metrics
+        # ---- Results (1 decimal) ----
         st.header("Results")
-        cols = st.columns(3)
-        with cols[0]:
-            unit = "USD/MWh" if final_kpi_label == "LCOE" else ("USD/kg" if final_kpi_label=="LCOH" else "USD/tonne")
-            st.metric(final_kpi_label, f"${fmt(final_kpi_value)}", help=unit)
-        with cols[1]:
-            st.metric("Upstream LCOE (Generation)", f"${fmt(lcoe_up)}", help="USD/MWh")
-        with cols[2]:
-            st.metric("PV Chain Cost", f"${fmt(pv_chain)}", help="USD (present value)")
+        c = st.columns(2)
+        with c[0]:
+            unit = "USD/MWh" if final_kpi_label == "LCOE" else ("USD/kg" if final_kpi_label == "LCOH" else "USD/tonne")
+            st.metric(final_kpi_label, f"${fmt1(final_kpi_value)}", help=unit)
+        with c[1]:
+            st.metric("Upstream LCOE (Generation)", f"${fmt1(lcoe_up)}", help="USD/MWh")
 
         st.markdown("---")
 
-        # ----------------------
-        # CAPEX/OPEX breakdown chart (full chain)
-        # ----------------------
+        # ---- CAPEX/OPEX Breakdown (stacked) ----
         st.subheader("CAPEX/OPEX Breakdown – Full Value Chain")
         capex_parts = [pv_capex_gen, pv_capex_elz, pv_capex_syn]
         opex_parts  = [pv_opex_gen,  pv_opex_elz,  pv_opex_syn]
         labels = ["Generation", "Electrolyzer", "Synthesis"]
 
         fig1, ax1 = plt.subplots(figsize=(6.5, 4))
-        idx = np.arange(1)  # single stacked bar each
+        idx = np.arange(1)
         bar_width = 0.4
         bottom_capex = np.zeros_like(idx, dtype=float)
         bottom_opex  = np.zeros_like(idx, dtype=float)
 
+        # Only stack nonzero blocks
         for val, lab in zip(capex_parts, labels):
-            ax1.bar(idx - bar_width/2, [val/1e6], bar_width, bottom=bottom_capex, label=f"{lab} CAPEX")
-            bottom_capex += np.array([val/1e6])
+            if val > 0:
+                ax1.bar(idx - bar_width/2, [val/1e6], bar_width, bottom=bottom_capex, label=f"{lab} CAPEX")
+                bottom_capex += np.array([val/1e6])
         for val, lab in zip(opex_parts, labels):
-            ax1.bar(idx + bar_width/2, [val/1e6], bar_width, bottom=bottom_opex, label=f"{lab} OPEX", alpha=0.7)
-            bottom_opex += np.array([val/1e6])
+            if val > 0:
+                ax1.bar(idx + bar_width/2, [val/1e6], bar_width, bottom=bottom_opex, label=f"{lab} OPEX", alpha=0.7)
+                bottom_opex += np.array([val/1e6])
 
         ax1.set_xticks([idx - bar_width/2, idx + bar_width/2])
         ax1.set_xticklabels(["CAPEX", "OPEX"])
@@ -222,24 +223,24 @@ def main():
         ax1.legend(loc="upper right", fontsize=8)
         st.pyplot(fig1)
 
-        # ----------------------
-        # Tornado chart – final KPI sensitivity
-        # ----------------------
+        # ---- Tornado Sensitivity (final KPI) ----
         st.subheader("Sensitivity – Final KPI (Tornado)")
-        sens_pct = st.slider("Variation per parameter", 5, 50, 20, step=5, help="±% change applied one-at-a-time") / 100
+        sens_pct = st.slider("Variation per parameter", 5, 50, 20, step=5,
+                             help="±% change applied one-at-a-time") / 100
 
-        # Recompute helper
         def recompute(capex_gen=capex_gen_mln, opex_gen=opex_gen_mln, cf_=cf, r_=r,
-                      capex_elz=capex_elz_mln, opex_elz=opex_elz_mln, elz_mw_=0.0,
-                      capex_syn=capex_syn_mln, opex_syn=opex_syn_mln, syn_mw_=0.0,
+                      capex_elz=capex_elz_mln, opex_elz=opex_elz_mln, elz_mw_=elz_mw,
+                      capex_syn=capex_syn_mln, opex_syn=opex_syn_mln, syn_mw_=syn_mw,
                       elz_eff=electrolyzer_eff, nh3_=nh3_eff, meoh_=meoh_eff):
+            # rebuild PV costs with altered inputs
             pv_capex_g, pv_opex_g, pv_cost_g = pv_costs_split(capex_gen, opex_gen, gen_mw, r_, n)
-            pv_capex_e, pv_opex_e, pv_cost_e = (0.0, 0.0, 0.0)
-            pv_capex_s, pv_opex_s, pv_cost_s = (0.0, 0.0, 0.0)
-            if need_h2:
+            pv_capex_e = pv_opex_e = pv_cost_e = 0.0
+            pv_capex_s = pv_opex_s = pv_cost_s = 0.0
+            if product in ("Hydrogen", "Ammonia", "Methanol"):
                 pv_capex_e, pv_opex_e, pv_cost_e = pv_costs_split(capex_elz, opex_elz, elz_mw_, r_, n)
-            if need_syn:
+            if product in ("Ammonia", "Methanol"):
                 pv_capex_s, pv_opex_s, pv_cost_s = pv_costs_split(capex_syn, opex_syn, syn_mw_, r_, n)
+
             pv_chain_loc = pv_cost_g + pv_cost_e + pv_cost_s
             lcoe_chain_loc = lcoe_from_costs(pv_chain_loc, pv_elec)
             if product == "Electricity (Electrons)":
@@ -260,19 +261,18 @@ def main():
             ("Capacity Factor (%)", "cf"),
             ("Discount Rate (%)", "r"),
         ]
-        if need_h2:
+        if product in ("Hydrogen", "Ammonia", "Methanol"):
             params += [("Electrolyzer CAPEX (mln/MW)", "capex_elz"),
                        ("Electrolyzer OPEX (mln/MW/yr)", "opex_elz"),
                        ("Electrolyzer Efficiency (%)", "elz_eff")]
-        if need_syn:
-            syn_label = "NH3" if product=="Ammonia" else "MeOH"
+        if product in ("Ammonia", "Methanol"):
+            syn_label = "NH3" if product == "Ammonia" else "MeOH"
             params += [(f"{syn_label} CAPEX (mln/MW)", "capex_syn"),
                        (f"{syn_label} OPEX (mln/MW/yr)", "opex_syn"),
                        (f"H2 → {syn_label} Efficiency (%)", "syn_eff")]
 
         for label, key in params:
-            low_kwargs = {}
-            high_kwargs = {}
+            low_kwargs, high_kwargs = {}, {}
             if key == "capex_gen":
                 low_kwargs["capex_gen"] = capex_gen_mln * (1 - sens_pct)
                 high_kwargs["capex_gen"] = capex_gen_mln * (1 + sens_pct)
@@ -301,16 +301,16 @@ def main():
                 low_kwargs["opex_syn"] = max(0.0, opex_syn_mln * (1 - sens_pct))
                 high_kwargs["opex_syn"] = opex_syn_mln * (1 + sens_pct)
             elif key == "syn_eff":
-                base_eff = nh3_eff if product=="Ammonia" else meoh_eff
-                low_kwargs["nh3_" if product=="Ammonia" else "meoh_"] = max(0.1, base_eff * (1 - sens_pct))
-                high_kwargs["nh3_" if product=="Ammonia" else "meoh_"] = min(0.95, base_eff * (1 + sens_pct))
+                base_eff = nh3_eff if product == "Ammonia" else meoh_eff
+                low_kwargs["nh3_" if product == "Ammonia" else "meoh_"] = max(0.1, base_eff * (1 - sens_pct))
+                high_kwargs["nh3_" if product == "Ammonia" else "meoh_"] = min(0.95, base_eff * (1 + sens_pct))
 
             low = recompute(**low_kwargs)
             high = recompute(**high_kwargs)
-            delta_low = baseline - low
-            delta_high = high - baseline
-            entries.append((label, delta_low, delta_high, max(abs(delta_low), abs(delta_high))))
+            entries.append((label, baseline - low, high - baseline,
+                            max(abs(baseline - low), abs(high - baseline))))
 
+        # order by absolute impact
         entries.sort(key=lambda x: x[3], reverse=True)
         labels_sorted = [e[0] for e in entries]
         lows = [e[1] for e in entries]
@@ -327,28 +327,6 @@ def main():
         ax2.legend(loc='lower right', fontsize=8)
         st.pyplot(fig2)
 
-        # Sensitivity table
-        sens_rows = []
-        for lbl, dl, dh, mx in entries:
-            sens_rows.append([lbl, dl, dh, mx])
-        sens_df = pd.DataFrame(sens_rows, columns=["Parameter", "Δ at -var", "Δ at +var", "|Max Δ|"])
-        st.dataframe(
-            sens_df.assign(**{"Δ at -var": sens_df["Δ at -var"].map(fmt),
-                              "Δ at +var": sens_df["Δ at +var"].map(fmt),
-                              "|Max Δ|": sens_df["|Max Δ|"].map(fmt)}),
-            use_container_width=True, hide_index=True
-        )
-
-    st.markdown("---")
-    st.header("About This Calculator")
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("**LCOE** – generation-only electricity cost (USD/MWh).  ")
-        st.markdown("**LCOH** – hydrogen cost from full chain (gen + electrolyzer).  ")
-    with c2:
-        st.markdown("**LCOA/LCOM** – ammonia/methanol cost from full chain (gen + electrolyzer + synthesis).  ")
-        st.markdown("All CAPEX/OPEX inputs are in **million USD units** per MW or MW/yr. Defaults reflect 2024 averages.")
-        st.markdown("Sensitivity shows which inputs drive the final KPI most. The cost chart shows block contributions.")
-
 if __name__ == "__main__":
     main()
+
