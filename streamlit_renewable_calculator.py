@@ -86,7 +86,7 @@ def main():
     need_h2 = product in ("Hydrogen", "Ammonia", "Methanol")
     need_syn = product in ("Ammonia", "Methanol")
 
-    # ---------- Electrolyzer (1.0M CAPEX, 0.025 OPEX, 70% eff)
+    # ---------- Electrolyzer
     pv_capex_elz = pv_opex_elz = pv_cost_elz = 0.0
     elz_mw = 0.0
     capex_elz_mln = opex_elz_mln = 0.0
@@ -94,10 +94,20 @@ def main():
     if need_h2:
         st.markdown("---")
         st.subheader("Electrolyzer Block")
+
         if mode == "Simple multipliers":
-            elz_mw = gen_mw
-            capex_elz_mln = 1.00
-            opex_elz_mln = 0.025
+            cols = st.columns(3)
+            with cols[0]:
+                elz_size_vs_gen_pct = st.number_input("Size vs Gen (%)", min_value=1.0, value=100.0, step=1.0)
+            with cols[1]:
+                # default ~1.00 / 1.30 ≈ 77%
+                elz_capex_pct_of_gen = st.number_input("CAPEX as % of Gen CAPEX", min_value=1.0, value=77.0, step=1.0)
+            with cols[2]:
+                # default 0.025 / 0.025 = 100%
+                elz_opex_pct_of_gen = st.number_input("OPEX as % of Gen OPEX", min_value=1.0, value=100.0, step=1.0)
+            elz_mw = gen_mw * (elz_size_vs_gen_pct / 100.0)
+            capex_elz_mln = capex_gen_mln * (elz_capex_pct_of_gen / 100.0)
+            opex_elz_mln = opex_gen_mln * (elz_opex_pct_of_gen / 100.0)
         else:
             cols = st.columns(3)
             with cols[0]:
@@ -116,13 +126,29 @@ def main():
     capex_syn_mln = opex_syn_mln = 0.0
     nh3_eff = 0.65
     meoh_eff = 0.65
+    # CO2 defaults for Methanol (defined even when not used to avoid NameError)
+    co2_cons_t_per_t_meoh = 0.0
+    co2_price_usd_per_t = 0.0
+
     if need_syn:
         st.markdown("---")
         st.subheader(f"Synthesis Block ({'Ammonia' if product=='Ammonia' else 'Methanol'})")
+
         if mode == "Simple multipliers":
-            syn_mw = elz_mw
-            capex_syn_mln = 0.65 if product == "Ammonia" else 0.70
-            opex_syn_mln = 0.012
+            cols = st.columns(3)
+            with cols[0]:
+                syn_size_vs_elz_pct = st.number_input("Size vs Electrolyzer (%)", min_value=1.0, value=100.0, step=1.0)
+            with cols[1]:
+                # For NH3 default ~0.65/1.30=50%, for MeOH ~0.70/1.30≈54%
+                default_syn_capex_pct = 50.0 if product == "Ammonia" else 54.0
+                syn_capex_pct_of_gen = st.number_input("CAPEX as % of Gen CAPEX", min_value=1.0, value=default_syn_capex_pct, step=1.0)
+            with cols[2]:
+                # OPEX default ~0.012/0.025 ≈ 48% (both NH3/MeOH)
+                syn_opex_pct_of_gen = st.number_input("OPEX as % of Gen OPEX", min_value=1.0, value=48.0, step=1.0)
+
+            syn_mw = (elz_mw if need_h2 else gen_mw) * (syn_size_vs_elz_pct / 100.0)
+            capex_syn_mln = capex_gen_mln * (syn_capex_pct_of_gen / 100.0)
+            opex_syn_mln = opex_gen_mln * (syn_opex_pct_of_gen / 100.0)
         else:
             cols = st.columns(3)
             with cols[0]:
@@ -143,9 +169,6 @@ def main():
             meoh_eff = st.number_input("H2 → MeOH Efficiency (%)", min_value=10.0, value=65.0, step=0.1) / 100
             co2_cons_t_per_t_meoh = st.number_input("CO₂ consumption (t CO₂ / t MeOH)", min_value=0.0, value=1.375, step=0.01)
             co2_price_usd_per_t   = st.number_input("CO₂ price (USD / t CO₂)", min_value=0.0, value=45.0, step=1.0)
-        else:
-            co2_cons_t_per_t_meoh = 0.0
-            co2_price_usd_per_t   = 0.0
 
         pv_capex_syn, pv_opex_syn, pv_cost_syn = pv_costs_split(capex_syn_mln, opex_syn_mln, syn_mw, r, n)
 
@@ -190,7 +213,33 @@ def main():
         elif final_kpi_label == "LCOM":
             st.markdown("* **Methanol (LCOM):** 1000–1300 USD/t  \n  Sources: IEA, *Renewables 2023*; Methanol Institute, *Green Methanol Report 2023*")
 
+    # ---- Notes & References (inputs + KPIs) ----
+    st.markdown("---")
+    with st.expander("📖 Notes & References"):
+        st.markdown(
+            """
+**Input Ranges (typical industry values):**
+- **Generation CAPEX (MUSD/MW):** Solar PV 0.8–1.2, Onshore wind 1.1–1.6, Offshore wind 2.5–4.0  
+  *Sources: Lazard LCOE 2023; IRENA Renewable Power Generation Costs 2023*  
+- **Generation OPEX (MUSD/MW/yr):** 0.015–0.035  (*IRENA 2023*)  
+- **Capacity Factor:** Solar 18–25%, Onshore wind 35–50%, Offshore wind 45–60%  (*IEA, Renewables 2023*)  
+- **Electrolyzer CAPEX (MUSD/MW):** 0.7–1.2 today; trending lower to ~0.5 by 2030  (*IEA, Global Hydrogen Review 2023*)  
+- **Electrolyzer OPEX:** ~2–3% of CAPEX/yr  (*Hydrogen Council, 2022*)  
+- **Electrolyzer Efficiency (HHV):** 65–75%  (*IEA, Global Hydrogen Review 2023*)  
+- **Ammonia synthesis efficiency (HHV):** 60–70%  (*EU JRC, 2022*)  
+- **Methanol synthesis efficiency (HHV):** 60–68%  (*Methanol Institute, 2023*)  
+- **CO₂ price (USD/t):** 20–60 depending on source/region  (*IEA CCUS 2023*)
+
+**Benchmark KPIs (today, global averages):**
+- **Renewables LCOE:** 30–60 USD/MWh  (*Lazard 2023*)  
+- **Hydrogen (LCOH):** 3–6 USD/kg  (*IEA, Global Hydrogen Review 2023*)  
+- **Ammonia (LCOA):** 900–1300 USD/t  (*IRENA 2023; EU JRC 2022*)  
+- **Methanol (LCOM):** 1000–1300 USD/t  (*IEA 2023; Methanol Institute 2023*)
+            """
+        )
+
 if __name__ == "__main__":
     main()
+
 
 
