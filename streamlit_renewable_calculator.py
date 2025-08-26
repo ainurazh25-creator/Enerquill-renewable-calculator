@@ -48,7 +48,7 @@ def fmt1(x):
 # -----------------------------
 def main():
     st.title("⚡ Renewable Energy Calculator")
-    st.caption("Enerquill Advisory – Value-chain KPIs (with realistic defaults)")
+    st.caption("Enerquill Advisory – Value-chain KPIs (realistic defaults)")
     st.markdown("---")
 
     product = st.radio(
@@ -61,14 +61,14 @@ def main():
     st.markdown("---")
     st.header("Input Parameters (million USD units)")
 
-    # ---------- Generation defaults (wind-like)
+    # ---------- Generation defaults (45% CF, 1.2M CAPEX, 0.025 OPEX)
     row1 = st.columns(3)
     with row1[0]:
         gen_mw = st.number_input("Generation Capacity (MW)", min_value=0.1, value=100.0, step=0.1)
     with row1[1]:
-        capex_gen_mln = st.number_input("Gen CAPEX (USD mln/MW)", min_value=0.001, value=1.00, step=0.01)
+        capex_gen_mln = st.number_input("Gen CAPEX (USD mln/MW)", min_value=0.001, value=1.20, step=0.01)
     with row1[2]:
-        opex_gen_mln = st.number_input("Gen OPEX (USD mln/MW/yr)", min_value=0.001, value=0.020, step=0.001)
+        opex_gen_mln = st.number_input("Gen OPEX (USD mln/MW/yr)", min_value=0.001, value=0.025, step=0.001)
 
     row2 = st.columns(3)
     with row2[0]:
@@ -86,58 +86,63 @@ def main():
     need_h2 = product in ("Hydrogen", "Ammonia", "Methanol")
     need_syn = product in ("Ammonia", "Methanol")
 
-    # ---------- Electrolyzer
+    # ---------- Electrolyzer (0.9M CAPEX, 0.025 OPEX, 70% eff)
     pv_capex_elz = pv_opex_elz = pv_cost_elz = 0.0
     elz_mw = 0.0
     capex_elz_mln = opex_elz_mln = 0.0
-    electrolyzer_eff = 0.70  # default efficiency
+    electrolyzer_eff = 0.70
     if need_h2:
         st.markdown("---")
         st.subheader("Electrolyzer Block")
         if mode == "Simple multipliers":
             elz_mw = gen_mw
-            capex_elz_mln = 0.80
-            opex_elz_mln = 0.020
+            capex_elz_mln = 0.90
+            opex_elz_mln = 0.025
         else:
             cols = st.columns(3)
             with cols[0]:
                 elz_mw = st.number_input("Electrolyzer Capacity (MW)", min_value=0.1, value=100.0, step=0.1)
             with cols[1]:
-                capex_elz_mln = st.number_input("Electrolyzer CAPEX (USD mln/MW)", min_value=0.001, value=0.80, step=0.01)
+                capex_elz_mln = st.number_input("Electrolyzer CAPEX (USD mln/MW)", min_value=0.001, value=0.90, step=0.01)
             with cols[2]:
-                opex_elz_mln = st.number_input("Electrolyzer OPEX (USD mln/MW/yr)", min_value=0.001, value=0.020, step=0.001)
+                opex_elz_mln = st.number_input("Electrolyzer OPEX (USD mln/MW/yr)", min_value=0.001, value=0.025, step=0.001)
 
         electrolyzer_eff = st.number_input("Electrolyzer Efficiency (%)", min_value=10.0, value=70.0, step=0.1) / 100
         pv_capex_elz, pv_opex_elz, pv_cost_elz = pv_costs_split(capex_elz_mln, opex_elz_mln, elz_mw, r, n)
 
-    # ---------- Synthesis
+    # ---------- Synthesis (Ammonia & Methanol)
     pv_capex_syn = pv_opex_syn = pv_cost_syn = 0.0
     syn_mw = 0.0
     capex_syn_mln = opex_syn_mln = 0.0
-    nh3_eff = 0.62
-    meoh_eff = 0.62
+    nh3_eff = 0.65
+    meoh_eff = 0.65
     if need_syn:
         st.markdown("---")
         st.subheader(f"Synthesis Block ({'Ammonia' if product=='Ammonia' else 'Methanol'})")
         if mode == "Simple multipliers":
             syn_mw = elz_mw
-            capex_syn_mln = 0.70
-            opex_syn_mln = 0.015
+            capex_syn_mln = 0.65 if product == "Ammonia" else 0.70
+            opex_syn_mln = 0.012
         else:
             cols = st.columns(3)
             with cols[0]:
                 syn_mw = st.number_input("Synthesis Capacity (MW-eq)", min_value=0.1, value=100.0, step=0.1)
             with cols[1]:
-                capex_syn_mln = st.number_input("Synthesis CAPEX (USD mln/MW-eq)", min_value=0.001, value=0.70, step=0.01)
+                capex_syn_mln = st.number_input(
+                    "Synthesis CAPEX (USD mln/MW-eq)",
+                    min_value=0.001,
+                    value=(0.65 if product == "Ammonia" else 0.70),
+                    step=0.01,
+                )
             with cols[2]:
-                opex_syn_mln = st.number_input("Synthesis OPEX (USD mln/MW-eq/yr)", min_value=0.001, value=0.015, step=0.001)
+                opex_syn_mln = st.number_input("Synthesis OPEX (USD mln/MW-eq/yr)", min_value=0.001, value=0.012, step=0.001)
 
         if product == "Ammonia":
-            nh3_eff = st.number_input("H2 → NH3 Efficiency (%)", min_value=10.0, value=62.0, step=0.1) / 100
+            nh3_eff = st.number_input("H2 → NH3 Efficiency (%)", min_value=10.0, value=65.0, step=0.1) / 100
         if product == "Methanol":
-            meoh_eff = st.number_input("H2 → MeOH Efficiency (%)", min_value=10.0, value=62.0, step=0.1) / 100
+            meoh_eff = st.number_input("H2 → MeOH Efficiency (%)", min_value=10.0, value=65.0, step=0.1) / 100
             co2_cons_t_per_t_meoh = st.number_input("CO₂ consumption (t CO₂ / t MeOH)", min_value=0.0, value=1.375, step=0.01)
-            co2_price_usd_per_t   = st.number_input("CO₂ price (USD / t CO₂)", min_value=0.0, value=30.0, step=1.0)
+            co2_price_usd_per_t   = st.number_input("CO₂ price (USD / t CO₂)", min_value=0.0, value=25.0, step=1.0)
         else:
             co2_cons_t_per_t_meoh = 0.0
             co2_price_usd_per_t   = 0.0
@@ -176,4 +181,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
