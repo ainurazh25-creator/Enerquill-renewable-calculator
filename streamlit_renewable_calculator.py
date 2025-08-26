@@ -48,7 +48,7 @@ def fmt1(x):
 # -----------------------------
 def main():
     st.title("⚡ Renewable Energy Calculator")
-    st.caption("Enerquill Advisory – Value-chain KPIs (realistic defaults)")
+    st.caption("Enerquill Advisory – Value-chain KPIs (tuned defaults with benchmarks)")
     st.markdown("---")
 
     product = st.radio(
@@ -61,12 +61,12 @@ def main():
     st.markdown("---")
     st.header("Input Parameters (million USD units)")
 
-    # ---------- Generation defaults (45% CF, 1.2M CAPEX, 0.025 OPEX)
+    # ---------- Generation (1.3M CAPEX, 0.025 OPEX, 45% CF)
     row1 = st.columns(3)
     with row1[0]:
         gen_mw = st.number_input("Generation Capacity (MW)", min_value=0.1, value=100.0, step=0.1)
     with row1[1]:
-        capex_gen_mln = st.number_input("Gen CAPEX (USD mln/MW)", min_value=0.001, value=1.20, step=0.01)
+        capex_gen_mln = st.number_input("Gen CAPEX (USD mln/MW)", min_value=0.001, value=1.30, step=0.01)
     with row1[2]:
         opex_gen_mln = st.number_input("Gen OPEX (USD mln/MW/yr)", min_value=0.001, value=0.025, step=0.001)
 
@@ -86,7 +86,7 @@ def main():
     need_h2 = product in ("Hydrogen", "Ammonia", "Methanol")
     need_syn = product in ("Ammonia", "Methanol")
 
-    # ---------- Electrolyzer (0.9M CAPEX, 0.025 OPEX, 70% eff)
+    # ---------- Electrolyzer (1.0M CAPEX, 0.025 OPEX, 70% eff)
     pv_capex_elz = pv_opex_elz = pv_cost_elz = 0.0
     elz_mw = 0.0
     capex_elz_mln = opex_elz_mln = 0.0
@@ -96,14 +96,14 @@ def main():
         st.subheader("Electrolyzer Block")
         if mode == "Simple multipliers":
             elz_mw = gen_mw
-            capex_elz_mln = 0.90
+            capex_elz_mln = 1.00
             opex_elz_mln = 0.025
         else:
             cols = st.columns(3)
             with cols[0]:
                 elz_mw = st.number_input("Electrolyzer Capacity (MW)", min_value=0.1, value=100.0, step=0.1)
             with cols[1]:
-                capex_elz_mln = st.number_input("Electrolyzer CAPEX (USD mln/MW)", min_value=0.001, value=0.90, step=0.01)
+                capex_elz_mln = st.number_input("Electrolyzer CAPEX (USD mln/MW)", min_value=0.001, value=1.00, step=0.01)
             with cols[2]:
                 opex_elz_mln = st.number_input("Electrolyzer OPEX (USD mln/MW/yr)", min_value=0.001, value=0.025, step=0.001)
 
@@ -142,7 +142,7 @@ def main():
         if product == "Methanol":
             meoh_eff = st.number_input("H2 → MeOH Efficiency (%)", min_value=10.0, value=65.0, step=0.1) / 100
             co2_cons_t_per_t_meoh = st.number_input("CO₂ consumption (t CO₂ / t MeOH)", min_value=0.0, value=1.375, step=0.01)
-            co2_price_usd_per_t   = st.number_input("CO₂ price (USD / t CO₂)", min_value=0.0, value=25.0, step=1.0)
+            co2_price_usd_per_t   = st.number_input("CO₂ price (USD / t CO₂)", min_value=0.0, value=45.0, step=1.0)
         else:
             co2_cons_t_per_t_meoh = 0.0
             co2_price_usd_per_t   = 0.0
@@ -178,6 +178,17 @@ def main():
             st.metric(final_kpi_label, f"${fmt1(final_kpi_value)}", help=unit)
         with c[1]:
             st.metric("Upstream LCOE (Generation)", f"${fmt1(lcoe_up)}", help="USD/MWh")
+
+        # ---- Benchmarks ----
+        st.markdown("### 📊 Benchmark Ranges (for reference)")
+        if final_kpi_label == "LCOE":
+            st.markdown("* **Renewables LCOE:** 30–60 USD/MWh  \n  Source: Lazard, *Levelized Cost of Energy 2023*")
+        elif final_kpi_label == "LCOH":
+            st.markdown("* **Hydrogen (LCOH):** 3–6 USD/kg  \n  Source: IEA, *Global Hydrogen Review 2023*")
+        elif final_kpi_label == "LCOA":
+            st.markdown("* **Ammonia (LCOA):** 900–1300 USD/t  \n  Sources: IRENA, *Green Hydrogen Cost Outlook 2023*; EU JRC, *Ammonia Cost Modelling 2022*")
+        elif final_kpi_label == "LCOM":
+            st.markdown("* **Methanol (LCOM):** 1000–1300 USD/t  \n  Sources: IEA, *Renewables 2023*; Methanol Institute, *Green Methanol Report 2023*")
 
 if __name__ == "__main__":
     main()
