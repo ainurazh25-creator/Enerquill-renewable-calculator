@@ -55,15 +55,16 @@ def main():
         "Select end product/value chain",
         options=["Electricity (Electrons)", "Hydrogen", "Ammonia", "Methanol"],
         horizontal=True,
-    )
+   )
     mode = st.selectbox("Cost input mode", ["Simple multipliers", "Detailed breakdown"])
-if mode == "Simple multipliers":
+
+    if mode == "Simple multipliers":
     st.info(
         "🔹 **Simple multipliers mode**: Electrolyzer and synthesis CAPEX/OPEX are set as a "
         "**percentage of generation CAPEX/OPEX**. Use this for quick, high-level estimates or "
         "when you want downstream costs to scale with generation."
     )
-else:
+    else:
     st.info(
         "🔹 **Detailed breakdown mode**: Enter **absolute CAPEX/OPEX values** for electrolyzer "
         "and synthesis blocks separately. Use this when you have project-specific data and want more control."
