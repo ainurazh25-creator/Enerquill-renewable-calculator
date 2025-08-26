@@ -55,7 +55,8 @@ def main():
         "Select end product/value chain",
         options=["Electricity (Electrons)", "Hydrogen", "Ammonia", "Methanol"],
         horizontal=True,
-   )
+    )
+
     mode = st.selectbox("Cost input mode", ["Simple multipliers", "Detailed breakdown"])
 
     if mode == "Simple multipliers":
@@ -69,6 +70,8 @@ def main():
             "🔹 **Detailed breakdown mode**: Enter **absolute CAPEX/OPEX values** for electrolyzer "
             "and synthesis blocks separately. Use this when you have project-specific data and want more control."
         )
+
+
 
     st.markdown("---")
     st.header("Input Parameters (million USD units)")
