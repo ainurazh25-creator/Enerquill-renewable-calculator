@@ -194,8 +194,8 @@ def main():
 
         st.markdown("---")
 
-        # ---- CAPEX/OPEX Breakdown (stacked) ----
-       st.subheader("CAPEX/OPEX Breakdown – Full Value Chain")
+                # ---- CAPEX/OPEX Breakdown (stacked) ----
+        st.subheader("CAPEX/OPEX Breakdown – Full Value Chain")
         capex_parts = [pv_capex_gen, pv_capex_elz, pv_capex_syn]
         opex_parts  = [pv_opex_gen,  pv_opex_elz,  pv_opex_syn]
         labels = ["Generation", "Electrolyzer", "Synthesis"]
